@@ -91,6 +91,12 @@ async def _async_get_with_retry(
             data = resp.json()
             _write_cache(key, data)
             return data
+        elif resp.status_code == 400:
+            # No data for this market/params — return empty result
+            print(f"  [400] no data for {params.get('market', params.get('tokenID', '?'))[:16]}...")
+            empty = {"history": []}
+            _write_cache(key, empty)
+            return empty
         elif resp.status_code in (429, 500, 502, 503, 504):
             delay = 2 ** (attempt + 1)
             print(f"  [{resp.status_code}] retry {attempt+1}/{max_retries} in {delay}s...")

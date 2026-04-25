@@ -1,22 +1,21 @@
 # Blind Community Detection on Prediction Markets
 
-Applying [Blind Community Detection](https://arxiv.org/abs/1801.07301) — a spectral clustering method on the covariance of graph signals — to [Polymarket](https://polymarket.com) prediction markets. The goal is to identify clusters of markets that co-move, without any prior knowledge of the underlying graph structure.
+Applying [Blind Community Detection](https://arxiv.org/abs/1801.07301), a spectral clustering method on the covariance of graph signals, to [Polymarket](https://polymarket.com) prediction markets. The goal is to identify clusters of markets that co-move, without any prior knowledge of the underlying graph structure.
 
 ## Method
 
-1. Pull price time series for sub-markets within a Polymarket event via the Gamma and CLOB APIs.
-2. Transform prices into log-odds returns: `Δθ_t = log(p_t/(1-p_t)) - log(p_{t-1}/(1-p_{t-1}))`.
-3. Compute the sample covariance matrix of the returns.
-4. Take the top-K eigenvectors of the covariance as a low-dimensional embedding of each market.
-5. Run K-means on the embedding to recover clusters.
+1. Pull price time series for sub-markets across Polymarket events via the Gamma and CLOB APIs.
+2. Forward-fill to an hourly grid and compute the **correlation matrix** of centered price levels.
+3. Take the top-K eigenvectors of the correlation as a low-dimensional embedding of each market.
+4. Run K-means on the embedding to recover clusters.
 
-If markets share latent structure (e.g. correlated outcomes, similar probability regimes), BlindCD should recover that structure from price co-movements alone.
+Using price levels (not log-odds returns) avoids the sparse-returns problem — most Polymarket markets trade only a few times per day, making hourly returns 95%+ zeros. The correlation matrix normalizes scale and captures co-movement patterns across events.
 
 ## Phase 0 (current)
 
-Proof-of-concept on a single event slice. The notebook in `notebooks/phase0_exploration.ipynb` runs end-to-end: explores available events, picks one with good properties, pulls data, runs the pipeline, and visualizes results.
+Two-event separation test. The notebook in `notebooks/phase0_exploration.ipynb` picks two unrelated high-volume events, pools their sub-markets, runs BlindCD with K=2, and checks if clustering correctly separates markets by parent event.
 
-**First result:** On the "How many Fed rate cuts in 2026?" event (8 surviving markets, 241 hourly bars), the eigenvalue spectrum shows clear low-pass structure and the recovered clusters separate high-probability outcomes from low-probability tail markets — a sensible grouping that emerges purely from price co-movements.
+**Result:** On "Starmer out by...?" (3 markets) vs "Will Trump visit China by...?" (4 markets), BlindCD achieves **71.4% accuracy** (5/7 correct). The correlation heatmap shows clear block structure — within-event markets are positively correlated while across-event markets show negative correlation. Two Trump-China markets with near-zero or near-one probabilities get misclassified due to low price variation.
 
 ## Project structure
 

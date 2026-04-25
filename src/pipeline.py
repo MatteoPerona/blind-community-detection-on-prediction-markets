@@ -8,6 +8,7 @@ from sklearn.cluster import KMeans
 def build_panel(
     prices_long: pl.DataFrame,
     fidelity_minutes: int = 60,
+    max_missing_frac: float = 0.30,
 ) -> tuple[pl.DataFrame, list[dict]]:
     """
     Build a clean wide panel from long-format price data.
@@ -36,7 +37,7 @@ def build_panel(
     n_rows = wide.height
     for c in token_cols:
         missing_frac = wide[c].null_count() / n_rows
-        if missing_frac > 0.30:
+        if missing_frac > max_missing_frac:
             dropped.append({"token_id": c, "reason": f"missing {missing_frac:.1%}"})
             wide = wide.drop(c)
 
@@ -85,11 +86,13 @@ def compute_log_odds_returns(panel_wide: pl.DataFrame) -> pl.DataFrame:
 def run_blindcd(
     returns_df: pl.DataFrame,
     K: int,
+    use_correlation: bool = False,
 ) -> dict:
     """
     Run the Blind Community Detection pipeline.
 
     Steps: center → covariance → eigendecomposition → top-K embedding → K-means.
+    If use_correlation=True, standardize columns (z-score) so covariance == correlation.
 
     Returns dict with keys: labels, eigenvalues, embedding, cov_matrix, token_ids.
     """
@@ -99,7 +102,13 @@ def run_blindcd(
     # Center columns
     Y_centered = Y - Y.mean(axis=0, keepdims=True)
 
-    # Sample covariance
+    # Optionally standardize to unit variance (covariance becomes correlation)
+    if use_correlation:
+        stds = Y_centered.std(axis=0, keepdims=True)
+        stds = np.maximum(stds, 1e-15)  # avoid division by zero
+        Y_centered = Y_centered / stds
+
+    # Sample covariance (= correlation if standardized)
     m = Y_centered.shape[0]
     cov = (1.0 / m) * Y_centered.T @ Y_centered  # (N, N)
 
